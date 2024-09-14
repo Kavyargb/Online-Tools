@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projectile Motion with Magnus Effect</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+body {
+    font-family: 'Roboto', sans-serif;
+    padding: 30px;
+    background-color: #f4f7f9;
+    color: #2c3e50;
+}
+
+h1 {
+    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+.input-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.input-container label {
+    font-size: 1rem;
+    color: #34495e;
+    margin-bottom: 8px;
+}
+
+.input-container input {
+    width: 100%;
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    outline: none;
+    margin-bottom: 15px;
+    transition: border-color 0.3s ease;
+}
+
+.input-container input:focus {
+    border-color: #007bff;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1.1rem;
+    background-color: #007bff;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+#plot {
+    margin-top: 40px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+    </style>
+</head>
+<body>
+    <h1>Projectile Motion with Magnus Effect</h1>
+
+    <div class="input-container">
+        <label for="spinRate">Spin Rate (rad/s):</label>
+        <input type="number" id="spinRate" value="-3.8">
+        <label for="windSpeed">Wind Speed (m/s):</label>
+        <input type="number" id="windSpeed" value="2.2352">
+        <label for="initialHeight">Initial Height (m):</label>
+        <input type="number" id="initialHeight" value="126.5">
+        <button onclick="plotProjectile()">Plot</button>
+    </div>
+
+    <div id="plot"></div>
+
+    <script>
+        function plotProjectile() {
+            // Get user inputs
+            const spinRate = parseFloat(document.getElementById('spinRate').value);
+            const windSpeed = parseFloat(document.getElementById('windSpeed').value);
+            const initialHeight = parseFloat(document.getElementById('initialHeight').value);
+
+            // Constants
+            const g = 9.81;  // Gravity (m/s^2)
+            const c = 0.07;  // Drag coefficient (kg/s)
+            const m = 1;     // Mass (kg)
+            const Omega = 7.2921e-5;  // Angular velocity of Earth (rad/s)
+            const S = 0.1;   // Magnus constant (spin coefficient)
+
+            // Initial conditions
+            const v_wind = [windSpeed, 0];
+            const r0 = [0, initialHeight];
+            const v0 = [0, 0];
+            const omega = [0, 0, spinRate];
+
+            // Time simulation settings
+            const t_total = 8;
+            const t_eval = linspace(0, t_total, 1000);
+
+            // Function to simulate motion with drag, wind, Coriolis, centrifugal, and Magnus effects
+            function simulateProjectile() {
+                let positions = [];
+                let dt = t_eval[1] - t_eval[0];
+                let r = r0.slice();
+                let v = v0.slice();
+
+                for (let t of t_eval) {
+                    let v_rel = [v[0] - v_wind[0], v[1] - v_wind[1]];  // Relative velocity
+                    let gravity = [0, -g];
+                    let drag = [-c / m * v_rel[0], -c / m * v_rel[1]];
+                    let coriolis = [2 * Omega * v[1], -2 * Omega * v[0]];
+                    let centrifugal = [Omega ** 2 * r[0], Omega ** 2 * r[1]];
+                    let magnus = [(S / m) * (omega[2] * v[1]), (S / m) * (-omega[2] * v[0])];
+
+                    let dvdt = [
+                        gravity[0] + drag[0] + coriolis[0] + centrifugal[0] + magnus[0],
+                        gravity[1] + drag[1] + coriolis[1] + centrifugal[1] + magnus[1]
+                    ];
+
+                    // Update velocity
+                    v[0] += dvdt[0] * dt;
+                    v[1] += dvdt[1] * dt;
+
+                    // Update position
+                    r[0] += v[0] * dt;
+                    r[1] += v[1] * dt;
+
+                    positions.push([r[0], r[1]]);
+                    
+                    // Break if the projectile hits the ground
+                    if (r[1] < 0) break;
+                }
+                return positions;
+            }
+
+            // Generate time array
+            function linspace(start, end, num) {
+                let arr = [];
+                let step = (end - start) / (num - 1);
+                for (let i = 0; i < num; i++) {
+                    arr.push(start + step * i);
+                }
+                return arr;
+            }
+
+            // Simulate the projectile motion
+            const trajectory = simulateProjectile();
+            const x_vals = trajectory.map(p => p[0]);
+            const y_vals = trajectory.map(p => p[1]);
+
+            // Plot using Plotly.js
+            Plotly.newPlot('plot', [{
+                x: x_vals,
+                y: y_vals,
+                mode: 'lines',
+                name: 'Trajectory'
+            }], {
+                title: 'Projectile Motion with Wind, Coriolis, Centrifugal, and Magnus Effects',
+                xaxis: { title: 'x position (m)' },
+                yaxis: { title: 'y position (m)' }
+            });
+        }
+    </script>
+</body>
+</html>
